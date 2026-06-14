@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel | PIALA STRIKE</title>
+    <link rel="icon" type="image/png" href="https://www.image2url.com/r2/default/images/1781400587629-8975d00d-d810-4ed4-a1f1-855b59fd2bdb.png">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        * { font-family: 'Poppins', sans-serif; }
+        body { background: #0B1120; }
+    </style>
+</head>
+<body class="text-white">
+
+<div id="loading" class="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center hidden">
+    <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+</div>
+
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+    <div class="flex justify-between items-center mb-8 pb-4 border-b border-amber-500/30">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-user-shield text-3xl text-amber-400"></i>
+            <h1 class="text-2xl md:text-3xl font-bold text-amber-400">ADMIN PANEL - PIALA STRIKE</h1>
+        </div>
+        <div class="flex gap-3">
+            <a href="index.html" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl text-sm transition"><i class="fas fa-home"></i> User Page</a>
+            <button id="logoutBtn" class="bg-red-500/20 hover:bg-red-500/40 text-red-300 px-4 py-2 rounded-xl text-sm transition"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </div>
+    <div id="adminContent"></div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDwyGvqXYfjcJDrgjvpNtXmAKERzZC4yBI",
+        authDomain: "piala-strike.firebaseapp.com",
+        projectId: "piala-strike",
+        storageBucket: "piala-strike.firebasestorage.app",
+        messagingSenderId: "908738816658",
+        appId: "G-ZRSEG4Z7HV"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let adminLoggedIn = false;
+    let allTeams = [];
+    let tournamentBracket = null;
+    const MAX_TEAMS = 8;
+
+    function showLoading(show) { document.getElementById("loading").style.display = show ? "flex" : "none"; }
+    function escapeHtml(str) { return str ? str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
+    function encryptPassword(pwd) { return btoa(pwd); }
+
+    async function loadAllTeams() {
+        const snap = await db.collection("teams").get();
+        allTeams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function loadBracket() {
+        const doc = await db.collection("tournament").doc("bracket").get();
+        tournamentBracket = doc.exists ? doc.data() : null;
+    }
+
+    async function saveBracket() {
+        if (tournamentBracket) {
+            tournamentBracket.updatedAt = new Date().toISOString();
+            await db.collection("tournament").doc("bracket").set(tournamentBracket, { merge: true });
+        }
+    }
+
+    function propagateWinners(bracket) {
+        if (!bracket?.rounds) return;
+        for (let i = 0; i < bracket.rounds.length - 1; i++) {
+            const curr = bracket.rounds[i];
+            const next = bracket.rounds[i+1];
+            for (const match of curr.matches) {
+                if (match.winner) {
+                    for (const nextMatch of next.matches) {
+                        if (nextMatch.fromMatch1 === match) nextMatch.team1 = match.winner;
+                        if (nextMatch.fromMatch2 === match) nextMatch.team2 = match.winner;
+                    }
+                }
+            }
+        }
+        const finalRound = bracket.rounds[bracket.rounds.length - 1];
+        bracket.winner = finalRound?.matches[0]?.winner || null;
+    }
+
+    async function generateNewBracket() {
+        const active = allTeams.filter(t => t.status === "active").slice(0, MAX_TEAMS);
+        if (active.length < 2) return null;
+        const shuffled = [...active];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        let currentMatches = [];
+        for (let i = 0; i < shuffled.length; i += 2) {
+            if (i + 1 < shuffled.length) {
+                currentMatches.push({ id: `R1_M${Math.floor(i/2)+1}`, team1: { id: shuffled[i].id, name: shuffled[i].teamName, score: null }, team2: { id: shuffled[i+1].id, name: shuffled[i+1].teamName, score: null }, winner: null, played: false, round: 1 });
+            } else {
+                currentMatches.push({ id: `R1_BYE_${i}`, team1: { id: shuffled[i].id, name: shuffled[i].teamName, score: null }, team2: null, winner: { id: shuffled[i].id, name: shuffled[i].teamName }, played: true, round: 1 });
+            }
+        }
+        let rounds = [{ round: 1, matches: currentMatches }];
+        let roundNum = 2;
+        while (currentMatches.length > 1) {
+            let next = [];
+            for (let i = 0; i < currentMatches.length; i += 2) {
+                if (i + 1 < currentMatches.length) {
+                    next.push({ id: `R${roundNum}_M${Math.floor(i/2)+1}`, team1: null, team2: null, winner: null, played: false, round: roundNum, fromMatch1: currentMatches[i], fromMatch2: currentMatches[i+1] });
+                } else {
+                    next.push({ id: `R${roundNum}_BYE`, team1: null, team2: null, winner: null, played: false, round: roundNum, fromMatch1: currentMatches[i], fromMatch2: null });
+                }
+            }
+            rounds.push({ round: roundNum, matches: next });
+            currentMatches = next;
+            roundNum++;
+        }
+        return { rounds, winner: null };
+    }
+
+    async function renderAdmin() {
+        showLoading(true);
+        await loadAllTeams();
+        await loadBracket();
+        const activeTeams = allTeams.filter(t => t.status === "active");
+        const bannedSnap = await db.collection("bannedTeams").get();
+        const bannedTeams = bannedSnap.docs.map(d => d.data());
+        
+        const html = `
+            <!-- Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center"><i class="fas fa-users text-amber-400 text-2xl"></i><p class="text-2xl font-bold">${allTeams.length}</p><p class="text-xs">Total Tim</p></div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center"><i class="fas fa-check-circle text-green-400 text-2xl"></i><p class="text-2xl font-bold">${activeTeams.length}/${MAX_TEAMS}</p><p class="text-xs">Tim Aktif</p></div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center"><i class="fas fa-ban text-red-400 text-2xl"></i><p class="text-2xl font-bold">${bannedTeams.length}</p><p class="text-xs">Banned</p></div>
+                <div class="bg-slate-800/50 rounded-xl p-4 text-center"><i class="fas fa-trophy text-amber-400 text-2xl"></i><p class="text-2xl font-bold">${tournamentBracket?.winner?.name || '-'}</p><p class="text-xs">Juara</p></div>
+            </div>
+            
+            <!-- Bracket Management -->
+            <div class="bg-slate-800/40 rounded-2xl p-6 mb-8 border border-amber-500/30">
+                <h2 class="text-xl font-bold text-amber-400 mb-4"><i class="fas fa-network-wired"></i> Manajemen Bracket & Skor</h2>
+                <div class="flex flex-wrap gap-3 mb-6">
+                    <button id="genBracketBtn" class="bg-amber-500 hover:bg-amber-600 text-slate-900 px-4 py-2 rounded-xl text-sm font-semibold"><i class="fas fa-arrows-rotate"></i> Generate Ulang Bracket</button>
+                    <button id="editScoresBtn" class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 px-4 py-2 rounded-xl text-sm"><i class="fas fa-pen"></i> Edit Skor Pertandingan</button>
+                    <button id="resetBracketBtn" class="bg-red-500/20 hover:bg-red-500/40 text-red-300 px-4 py-2 rounded-xl text-sm"><i class="fas fa-trash"></i> Reset Semua Skor</button>
+                </div>
+                <div id="bracketPreview" class="overflow-x-auto text-sm">${tournamentBracket?.rounds ? renderBracketPreview() : '<p class="text-slate-400">Belum ada bracket. Klik "Generate" untuk membuat bracket.</p>'}</div>
+            </div>
+            
+            <!-- Team Management -->
+            <div class="bg-slate-800/40 rounded-2xl p-6 border border-amber-500/30">
+                <h2 class="text-xl font-bold text-amber-400 mb-4"><i class="fas fa-users"></i> Manajemen Tim</h2>
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <input type="text" id="searchTeam" placeholder="Cari tim..." class="bg-slate-700 border border-slate-600 rounded-xl px-4 py-2 text-white flex-1 min-w-[200px]">
+                    <button id="addManualBtn" class="bg-green-500/20 hover:bg-green-500/40 text-green-300 px-4 py-2 rounded-xl text-sm"><i class="fas fa-plus"></i> Tambah Tim Manual</button>
+                    <button id="exportBtn" class="bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-xl text-sm"><i class="fas fa-download"></i> Export CSV</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="border-b border-amber-500/30"><tr><th class="py-2">Slot</th><th>Nama Tim</th><th>Perwakilan</th><th>WhatsApp</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <tbody id="teamListBody">
+                            ${allTeams.map((team, i) => `<tr class="border-b border-slate-700"><td class="py-2">${i+1}</td><td>${escapeHtml(team.teamName)}</td><td>${escapeHtml(team.perwakilan)}</td><td>${team.whatsapp || '-'}</td><td><span class="px-2 py-1 rounded-full text-xs ${team.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">${team.status}</span></td>
+                            <td><button onclick="editTeam('${team.id}')" class="text-amber-400 mr-2"><i class="fas fa-edit"></i></button><button onclick="banTeam('${team.id}')" class="text-red-400 mr-2"><i class="fas fa-gavel"></i></button><button onclick="deleteTeam('${team.id}')" class="text-slate-400"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        document.getElementById("adminContent").innerHTML = html;
+        
+        document.getElementById("genBracketBtn")?.addEventListener("click", async () => {
+            const newBracket = await generateNewBracket();
+            if (newBracket) {
+                tournamentBracket = newBracket;
+                await saveBracket();
+                Swal.fire("Sukses", "Bracket berhasil digenerate!", "success");
+                renderAdmin();
+            } else { Swal.fire("Error", "Minimal 2 tim aktif untuk membuat bracket", "error"); }
+        });
+        document.getElementById("editScoresBtn")?.addEventListener("click", openScoreEditor);
+        document.getElementById("resetBracketBtn")?.addEventListener("click", async () => {
+            const conf = await Swal.fire({ title: "Reset Skor?", text: "Semua skor pertandingan akan dihapus!", icon: "warning", showCancelButton: true });
+            if (conf.isConfirmed && tournamentBracket) {
+                for (const round of tournamentBracket.rounds) {
+                    for (const match of round.matches) {
+                        if (match.team1) match.team1.score = null;
+                        if (match.team2) match.team2.score = null;
+                        match.winner = null;
+                        match.played = false;
+                    }
+                }
+                propagateWinners(tournamentBracket);
+                await saveBracket();
+                Swal.fire("Sukses", "Skor telah direset!", "success");
+                renderAdmin();
+            }
+        });
+        document.getElementById("addManualBtn")?.addEventListener("click", async () => {
+            const { value: form } = await Swal.fire({ title: "Tambah Tim Manual", html: `<input id="teamName" class="swal2-input" placeholder="Nama Tim"><input id="wakil" class="swal2-input" placeholder="Perwakilan"><input id="wa" class="swal2-input" placeholder="WhatsApp"><input type="password" id="pass" class="swal2-input" placeholder="Password">`, preConfirm: () => ({ teamName: document.getElementById("teamName").value, perwakilan: document.getElementById("wakil").value, whatsapp: document.getElementById("wa").value, password: document.getElementById("pass").value }) });
+            if (form?.teamName) {
+                await db.collection("teams").add({ ...form, password: encryptPassword(form.password), players: [{ nick: "Admin Input", uid: "0000" }], status: "active", createdAt: new Date().toISOString() });
+                Swal.fire("Sukses", "Tim ditambahkan!", "success");
+                renderAdmin();
+            }
+        });
+        document.getElementById("exportBtn")?.addEventListener("click", () => {
+            let csv = "Nama Tim,Perwakilan,WhatsApp,Status\n";
+            allTeams.forEach(t => csv += `"${t.teamName}","${t.perwakilan}","${t.whatsapp}","${t.status}"\n`);
+            const blob = new Blob([csv], { type: "text/csv" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "teams_export.csv";
+            link.click();
+        });
+        document.getElementById("searchTeam")?.addEventListener("input", (e) => {
+            const term = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll("#teamListBody tr");
+            rows.forEach(row => { row.style.display = row.innerText.toLowerCase().includes(term) ? "" : "none"; });
+        });
+        showLoading(false);
+    }
+
+    function renderBracketPreview() {
+        if (!tournamentBracket?.rounds) return "<p class='text-slate-400'>Belum ada data</p>";
+        let html = `<div class="flex gap-4 overflow-x-auto pb-2">`;
+        for (const round of tournamentBracket.rounds) {
+            html += `<div class="min-w-[280px]"><div class="text-center mb-2"><span class="bg-amber-500/30 px-3 py-1 rounded-full text-xs">Babak ${round.round}</span></div>`;
+            for (const match of round.matches) {
+                const t1 = match.team1?.name || "???";
+                const t2 = match.team2?.name || "???";
+                const s1 = match.team1?.score ?? "-";
+                const s2 = match.team2?.score ?? "-";
+                html += `<div class="bg-slate-700/50 rounded-lg p-2 mb-2 text-xs"><div class="flex justify-between"><span>${escapeHtml(t1)}</span><span class="text-amber-400">${s1}</span></div><div class="flex justify-between"><span>${escapeHtml(t2)}</span><span class="text-amber-400">${s2}</span></div><div class="text-center text-amber-500 mt-1">🏆 ${escapeHtml(match.winner?.name || "-")}</div></div>`;
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    async function openScoreEditor() {
+        if (!tournamentBracket?.rounds) { Swal.fire("Error", "Bracket belum dibuat", "error"); return; }
+        let allMatches = [];
+        for (const round of tournamentBracket.rounds) {
+            for (const match of round.matches) {
+                if (match.team1 && match.team2) allMatches.push(match);
+            }
+        }
+        if (allMatches.length === 0) { Swal.fire("Info", "Tidak ada pertandingan yang bisa diedit", "info"); return; }
+        let options = `<select id="matchSelect" class="w-full bg-slate-700 border border-slate-600 rounded-xl p-2 mb-4">`;
+        allMatches.forEach(m => options += `<option value="${m.id}">${m.team1.name} vs ${m.team2.name} (Babak ${m.round})</option>`);
+        options += `</select><div class="grid grid-cols-2 gap-4"><div><label class="text-amber-400">Gol ${allMatches[0]?.team1?.name}</label><input type="number" id="score1" class="w-full bg-slate-700 rounded-xl p-2"></div><div><label class="text-amber-400">Gol ${allMatches[0]?.team2?.name}</label><input type="number" id="score2" class="w-full bg-slate-700 rounded-xl p-2"></div></div>`;
+        const { value: form } = await Swal.fire({ title: "Edit Skor", html: options, preConfirm: () => ({ matchId: document.getElementById("matchSelect").value, s1: parseInt(document.getElementById("score1").value) || 0, s2: parseInt(document.getElementById("score2").value) || 0 }) });
+        if (form) {
+            const match = allMatches.find(m => m.id === form.matchId);
+            if (match) {
+                match.team1.score = form.s1;
+                match.team2.score = form.s2;
+                match.played = true;
+                match.winner = form.s1 > form.s2 ? match.team1 : (form.s2 > form.s1 ? match.team2 : null);
+                propagateWinners(tournamentBracket);
+                await saveBracket();
+                Swal.fire("Sukses", "Skor diupdate!", "success");
+                renderAdmin();
+            }
+        }
+    }
+
+    window.editTeam = async (id) => {
+        const team = allTeams.find(t => t.id === id);
+        const { value: newName } = await Swal.fire({ title: "Edit Nama Tim", input: "text", inputValue: team.teamName });
+        if (newName) await db.collection("teams").doc(id).update({ teamName: newName });
+        renderAdmin();
+    };
+    window.banTeam = async (id) => {
+        const team = allTeams.find(t => t.id === id);
+        const existing = await db.collection("bannedTeams").where("teamName", "==", team.teamName).get();
+        if (!existing.empty) {
+            await existing.docs[0].ref.delete();
+            await db.collection("teams").doc(id).update({ status: "active" });
+            Swal.fire("Info", "BAN dicopot", "info");
+        } else {
+            const { value: reason } = await Swal.fire({ title: "Ban Team", input: "text", inputPlaceholder: "Alasan" });
+            if (reason) {
+                await db.collection("bannedTeams").add({ teamName: team.teamName, reason, bannedAt: new Date().toISOString() });
+                await db.collection("teams").doc(id).update({ status: "banned" });
+                Swal.fire("Sukses", "Team di-BAN", "success");
+            }
+        }
+        renderAdmin();
+    };
+    window.deleteTeam = async (id) => {
+        const conf = await Swal.fire({ title: "Hapus Tim?", text: "Data akan dihapus permanen!", icon: "warning", showCancelButton: true });
+        if (conf.isConfirmed) { await db.collection("teams").doc(id).delete(); renderAdmin(); }
+    };
+
+    function checkLogin() {
+        if (!adminLoggedIn) {
+            const pwd = prompt("Admin Password:");
+            if (pwd === "pwd") adminLoggedIn = true;
+            else alert("Password salah!");
+        }
+        if (adminLoggedIn) renderAdmin();
+        else document.getElementById("adminContent").innerHTML = "<div class='bg-slate-800 rounded-2xl p-8 text-center'><i class='fas fa-lock text-4xl text-amber-400 mb-3'></i><p>Akses ditolak! Masukkan password yang benar.</p></div>";
+    }
+    document.getElementById("logoutBtn")?.addEventListener("click", () => { adminLoggedIn = false; checkLogin(); });
+    checkLogin();
+</script>
+</body>
+</html>
