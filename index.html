@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>WAR REGION | PIALA STRIKE</title>
+    <link rel="icon" type="image/png" href="https://www.image2url.com/r2/default/images/1781400587629-8975d00d-d810-4ed4-a1f1-855b59fd2bdb.png">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        * { font-family: 'Poppins', sans-serif; }
+        body { background: linear-gradient(135deg, #0B1120 0%, #0F172A 100%); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1E293B; }
+        ::-webkit-scrollbar-thumb { background: #FBBF24; border-radius: 10px; }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -12px rgba(0,0,0,0.5); }
+        .bracket-line { background: #FBBF24; opacity: 0.4; }
+    </style>
+</head>
+<body class="text-white">
+
+<div id="loading" class="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center hidden">
+    <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+</div>
+
+<!-- Navbar -->
+<nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-amber-500/30">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://www.image2url.com/r2/default/images/1781400587629-8975d00d-d810-4ed4-a1f1-855b59fd2bdb.png" alt="Logo" class="w-10 h-10 rounded-full bg-amber-400 p-1" onerror="this.style.display='none'">
+            <div>
+                <h1 class="text-xl font-bold text-amber-400">WAR REGION</h1>
+                <p class="text-xs text-slate-400">PIALA STRIKE · BRACKET SYSTEM</p>
+            </div>
+        </div>
+        <div class="hidden md:flex gap-6">
+            <a data-page="dashboard" class="nav-link cursor-pointer hover:text-amber-400 transition">Dashboard</a>
+            <a data-page="register" class="nav-link cursor-pointer hover:text-amber-400 transition">Daftar Tim</a>
+            <a data-page="bracket" class="nav-link cursor-pointer hover:text-amber-400 transition">Bracket</a>
+            <a data-page="participants" class="nav-link cursor-pointer hover:text-amber-400 transition">Peserta</a>
+            <a data-page="winners" class="nav-link cursor-pointer hover:text-amber-400 transition">Juara</a>
+            <a data-page="prize" class="nav-link cursor-pointer hover:text-amber-400 transition">Hadiah</a>
+        </div>
+        <div class="flex gap-2">
+            <a href="admin.html" class="bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 px-4 py-2 rounded-xl text-sm transition flex items-center gap-2"><i class="fas fa-user-shield"></i> <span class="hidden md:inline">Admin</span></a>
+            <button id="mobileMenuBtn" class="md:hidden text-amber-400 text-2xl"><i class="fas fa-bars"></i></button>
+        </div>
+    </div>
+    <div id="mobileMenu" class="hidden md:hidden bg-slate-800/95 flex flex-col gap-3 p-4 border-t border-amber-500/30">
+        <a data-page="dashboard" class="nav-link cursor-pointer hover:text-amber-400 py-2">Dashboard</a>
+        <a data-page="register" class="nav-link cursor-pointer hover:text-amber-400 py-2">Daftar Tim</a>
+        <a data-page="bracket" class="nav-link cursor-pointer hover:text-amber-400 py-2">Bracket</a>
+        <a data-page="participants" class="nav-link cursor-pointer hover:text-amber-400 py-2">Peserta</a>
+        <a data-page="winners" class="nav-link cursor-pointer hover:text-amber-400 py-2">Juara</a>
+        <a data-page="prize" class="nav-link cursor-pointer hover:text-amber-400 py-2">Hadiah</a>
+    </div>
+</nav>
+
+<main id="mainContent" class="container mx-auto px-4 py-8 max-w-7xl"></main>
+
+<footer class="bg-slate-900/80 border-t border-amber-500/20 mt-12 py-8">
+    <div class="container mx-auto px-4 text-center">
+        <div class="flex flex-wrap justify-center gap-6 mb-4">
+            <a href="" target="_blank" class="text-slate-400 hover:text-amber-400 text-xl"><i class="fab fa-instagram"></i></a>
+            <a href="" target="_blank" class="text-slate-400 hover:text-amber-400 text-xl"><i class="fab fa-tiktok"></i></a>
+            <a href="" target="_blank" class="text-slate-400 hover:text-amber-400 text-xl"><i class="fab fa-youtube"></i></a>
+        </div>
+        <p class="text-slate-500 text-sm">© 2026 War Region - Piala Strike</p>
+    </div>
+</footer>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDwyGvqXYfjcJDrgjvpNtXmAKERzZC4yBI",
+        authDomain: "piala-strike.firebaseapp.com",
+        projectId: "piala-strike",
+        storageBucket: "piala-strike.firebasestorage.app",
+        messagingSenderId: "908738816658",
+        appId: "G-ZRSEG4Z7HV"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let currentPage = "dashboard";
+    let allTeams = [];
+    let tournamentBracket = null;
+    const MAX_TEAMS = 8;
+
+    function showLoading(show) { document.getElementById("loading").style.display = show ? "flex" : "none"; }
+    function escapeHtml(str) { return str ? str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
+    function encryptPassword(pwd) { return btoa(pwd); }
+
+    async function loadAllTeams() {
+        const snap = await db.collection("teams").get();
+        allTeams = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function loadBracket() {
+        const doc = await db.collection("tournament").doc("bracket").get();
+        tournamentBracket = doc.exists ? doc.data() : null;
+    }
+
+    async function renderDashboard() {
+        const active = allTeams.filter(t => t.status === "active");
+        const html = `
+            <div class="bg-gradient-to-r from-amber-600/20 to-slate-800/40 rounded-2xl p-8 mb-8 text-center border border-amber-500/30">
+                <h1 class="text-4xl md:text-5xl font-bold text-amber-400 mb-3">PIALA STRIKE</h1>
+                <p class="text-slate-300 text-lg">Mode Bracket Knockout</p>
+                <div class="flex flex-wrap justify-center gap-4 mt-6">
+                    <button id="quickRegisterBtn" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2 px-6 rounded-xl transition"><i class="fas fa-pen-alt"></i> Daftar Tim</button>
+                    <button id="viewBracketBtn" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-xl transition"><i class="fas fa-network-wired"></i> Lihat Bracket</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-slate-800/50 rounded-2xl p-6 text-center border border-amber-500/20 card-hover">
+                    <i class="fas fa-users text-4xl text-amber-400 mb-3"></i>
+                    <h2 class="text-3xl font-bold">${active.length}/${MAX_TEAMS}</h2>
+                    <p class="text-slate-400">Tim Terdaftar</p>
+                </div>
+                <div class="bg-slate-800/50 rounded-2xl p-6 text-center border border-amber-500/20 card-hover">
+                    <i class="fas fa-trophy text-4xl text-amber-400 mb-3"></i>
+                    <h2 class="text-3xl font-bold">${tournamentBracket?.winner?.name || '-'}</h2>
+                    <p class="text-slate-400">Juara Saat Ini</p>
+                </div>
+                <div class="bg-slate-800/50 rounded-2xl p-6 text-center border border-amber-500/20 card-hover">
+                    <i class="fas fa-chart-simple text-4xl text-amber-400 mb-3"></i>
+                    <h2 class="text-3xl font-bold">${tournamentBracket?.rounds?.length || 0}</h2>
+                    <p class="text-slate-400">Babak</p>
+                </div>
+            </div>
+        `;
+        document.getElementById("mainContent").innerHTML = html;
+        document.getElementById("quickRegisterBtn")?.addEventListener("click", () => navigateTo("register"));
+        document.getElementById("viewBracketBtn")?.addEventListener("click", () => navigateTo("bracket"));
+    }
+
+    async function renderRegisterForm() {
+        const activeCount = allTeams.filter(t => t.status === "active").length;
+        const slotLeft = MAX_TEAMS - activeCount;
+        if (slotLeft <= 0) {
+            document.getElementById("mainContent").innerHTML = `<div class="bg-red-500/20 text-red-300 p-8 rounded-2xl text-center"><i class="fas fa-ban text-4xl mb-3"></i><p>Maaf, slot turnamen sudah penuh! (${MAX_TEAMS} tim)</p></div>`;
+            return;
+        }
+        const html = `
+            <div class="max-w-2xl mx-auto bg-slate-800/50 rounded-2xl p-8 border border-amber-500/30">
+                <h2 class="text-2xl font-bold text-amber-400 mb-2"><i class="fas fa-user-plus"></i> Form Pendaftaran Tim</h2>
+                <p class="text-slate-400 mb-6">Slot tersisa: <span class="text-amber-400 font-bold">${slotLeft}</span> / ${MAX_TEAMS}</p>
+                <form id="registerForm">
+                    <div class="mb-4"><label class="block text-amber-400 mb-1">Nama Perwakilan *</label><input type="text" id="wakil" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:border-amber-400 focus:outline-none" required></div>
+                    <div class="mb-4"><label class="block text-amber-400 mb-1">WhatsApp *</label><input type="tel" id="whatsapp" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white" required></div>
+                    <div class="mb-4"><label class="block text-amber-400 mb-1">Nama Team *</label><input type="text" id="teamName" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white" required></div>
+                    <h3 class="text-amber-400 font-semibold mt-4 mb-2">🧑‍🤝‍🧑 Pemain (4 Orang)</h3>
+                    ${[1,2,3,4].map(i => `<div class="grid grid-cols-2 gap-3 mb-3"><input type="text" id="nick${i}" placeholder="Nickname ${i}" class="bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white"><input type="text" id="uid${i}" placeholder="UID ${i}" class="bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white"></div>`).join('')}
+                    <div class="mb-4"><label class="block text-amber-400 mb-1">Password Team (min 6) *</label><input type="password" id="password" minlength="6" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white" required></div>
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 rounded-xl transition"><i class="fas fa-save"></i> Daftar</button>
+                </form>
+            </div>
+        `;
+        document.getElementById("mainContent").innerHTML = html;
+        document.getElementById("registerForm")?.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const wakil = document.getElementById("wakil").value.trim();
+            const whatsapp = document.getElementById("whatsapp").value.trim();
+            const teamName = document.getElementById("teamName").value.trim();
+            const password = document.getElementById("password").value;
+            if (!/^08[0-9]{8,13}$/.test(whatsapp)) { Swal.fire("Error", "No WhatsApp tidak valid", "error"); return; }
+            if (password.length < 6) { Swal.fire("Error", "Password minimal 6 karakter", "error"); return; }
+            const activeNow = allTeams.filter(t => t.status === "active").length;
+            if (activeNow >= MAX_TEAMS) { Swal.fire("Error", "Slot penuh!", "error"); return; }
+            const players = [];
+            for (let i=1; i<=4; i++) {
+                const nick = document.getElementById(`nick${i}`).value.trim();
+                const uid = document.getElementById(`uid${i}`).value.trim();
+                if (!nick || !uid) { Swal.fire("Error", `Data Player ${i} tidak lengkap`, "error"); return; }
+                players.push({ nick, uid });
+            }
+            showLoading(true);
+            await db.collection("teams").add({ perwakilan: wakil, whatsapp, teamName, players, password: btoa(password), status: "active", createdAt: new Date().toISOString() });
+            showLoading(false);
+            Swal.fire("Sukses!", "Pendaftaran berhasil!", "success");
+            await loadAllTeams();
+            navigateTo("dashboard");
+        });
+    }
+
+    async function renderBracketPage() {
+        if (!tournamentBracket?.rounds) {
+            document.getElementById("mainContent").innerHTML = `<div class="bg-slate-800 rounded-2xl p-8 text-center"><i class="fas fa-exclamation-triangle text-amber-400 text-5xl mb-4"></i><p>Belum ada bracket. Minimal 2 tim untuk membuat bracket.</p><button onclick="location.reload()" class="mt-4 bg-amber-500 px-4 py-2 rounded-xl">Refresh</button></div>`;
+            return;
+        }
+        let html = `<h2 class="text-2xl font-bold text-amber-400 mb-6"><i class="fas fa-network-wired"></i> Bracket Pertandingan</h2><div class="overflow-x-auto pb-4"><div class="flex gap-8 min-w-max">`;
+        for (const round of tournamentBracket.rounds) {
+            html += `<div class="flex flex-col gap-6"><div class="text-center mb-3"><span class="bg-amber-500/30 text-amber-300 px-4 py-1 rounded-full text-sm font-semibold">Babak ${round.round}</span></div>`;
+            for (const match of round.matches) {
+                const t1 = match.team1?.name || "???";
+                const t2 = match.team2?.name || "???";
+                const s1 = match.team1?.score !== undefined ? match.team1.score : "-";
+                const s2 = match.team2?.score !== undefined ? match.team2.score : "-";
+                html += `<div class="bg-slate-800/80 border border-amber-500/30 rounded-xl w-72 p-3"><div class="flex justify-between border-b border-slate-700 pb-2 mb-2 text-xs"><span>${match.id}</span>${match.played ? '<span class="text-green-400"><i class="fas fa-check-circle"></i></span>' : '<span class="text-yellow-400"><i class="fas fa-hourglass-half"></i></span>'}</div>
+                        <div class="flex justify-between items-center mb-2 p-2 rounded ${match.winner?.id === match.team1?.id ? 'bg-amber-500/20' : ''}"><span class="truncate max-w-[140px]">${escapeHtml(t1)}</span><span class="font-bold text-amber-400">${s1}</span></div>
+                        <div class="flex justify-between items-center p-2 rounded ${match.winner?.id === match.team2?.id ? 'bg-amber-500/20' : ''}"><span class="truncate max-w-[140px]">${escapeHtml(t2)}</span><span class="font-bold text-amber-400">${s2}</span></div>
+                        <div class="text-center text-xs text-slate-500 mt-2 pt-1 border-t border-slate-700">🏆 ${escapeHtml(match.winner?.name || "Belum ditentukan")}</div></div>`;
+            }
+            html += `</div>${round.round !== tournamentBracket.rounds.length ? `<div class="flex items-center"><i class="fas fa-arrow-right text-amber-400 text-2xl"></i></div>` : ''}`;
+        }
+        html += `</div></div>`;
+        if (tournamentBracket.winner) html += `<div class="mt-8 bg-gradient-to-r from-amber-600/30 to-slate-700/30 rounded-2xl p-6 text-center border border-amber-500/50"><i class="fas fa-crown text-4xl text-amber-400 mb-2"></i><h3 class="text-xl font-bold">Juara Turnamen</h3><p class="text-2xl font-black text-amber-400">${escapeHtml(tournamentBracket.winner.name)}</p></div>`;
+        document.getElementById("mainContent").innerHTML = html;
+    }
+
+    async function renderParticipants() {
+        const active = allTeams.filter(t => t.status === "active");
+        const html = `<div class="bg-slate-800/50 rounded-2xl p-6 border border-amber-500/30"><h2 class="text-2xl font-bold text-amber-400 mb-4"><i class="fas fa-list"></i> Daftar Peserta (${active.length}/${MAX_TEAMS})</h2>
+            <div class="overflow-x-auto"><table class="w-full text-left"><thead class="border-b border-amber-500/30"><tr><th class="py-3">No</th><th>Nama Tim</th><th>Perwakilan</th><th>Aksi</th></tr></thead><tbody>
+            ${active.map((t, i) => `<tr class="border-b border-slate-700"><td class="py-3">${i+1}</td><td class="font-medium">${escapeHtml(t.teamName)}</td><td>${escapeHtml(t.perwakilan)}</td><td><button onclick="viewDetail('${t.id}')" class="text-amber-400 hover:text-amber-300"><i class="fas fa-eye"></i></button></td></tr>`).join('')}
+            </tbody></table></div>${active.length === 0 ? '<div class="text-center py-8 text-slate-400">Belum ada tim</div>' : ''}</div>`;
+        document.getElementById("mainContent").innerHTML = html;
+        window.viewDetail = async (id) => {
+            const doc = await db.collection("teams").doc(id).get();
+            const d = doc.data();
+            Swal.fire({ title: d.teamName, html: `<b>Perwakilan:</b> ${escapeHtml(d.perwakilan)}<br><b>WhatsApp:</b> ${d.whatsapp}<br><b>Pemain:</b><br>${d.players.map(p=>`${escapeHtml(p.nick)} (${p.uid})`).join("<br>")}`, background: "#0F172A", color: "#fff" });
+        };
+    }
+
+    async function renderWinners() {
+        const winner = tournamentBracket?.winner;
+        document.getElementById("mainContent").innerHTML = `<div class="bg-gradient-to-br from-amber-900/30 to-slate-800/50 rounded-2xl p-8 text-center border border-amber-500/40">
+            <i class="fas fa-trophy text-6xl text-amber-400 mb-4"></i>
+            <h2 class="text-3xl font-bold text-amber-400 mb-2">JUARA SQUAD TOURNAMENT</h2>
+            ${winner ? `<p class="text-4xl font-black mt-4">${escapeHtml(winner.name)}</p><p class="text-slate-300 mt-2">🏆 Tim Terbaik!</p>` : '<p class="text-slate-400">Belum ada pemenang</p>'}
+        </div>`;
+    }
+
+    function renderPrize() {
+        document.getElementById("mainContent").innerHTML = `<div class="grid md:grid-cols-3 gap-6">
+            <div class="bg-slate-800 rounded-2xl p-6 text-center border border-amber-500/30"><i class="fas fa-medal text-4xl text-amber-400 mb-3"></i><h3 class="text-xl font-bold">Juara 1</h3><p class="text-amber-400 text-2xl">Rp. 30.000 + E-Certificate</p></div>
+            <div class="bg-slate-800 rounded-2xl p-6 text-center border border-amber-500/30"><i class="fas fa-medal text-4xl text-slate-400 mb-3"></i><h3 class="text-xl font-bold">Juara 2</h3><p class="text-amber-400 text-2xl"> E-Certificate</p></div>
+            <div class="bg-slate-800 rounded-2xl p-6 text-center border border-amber-500/30"><i class="fas fa-medal text-4xl text-amber-700 mb-3"></i><h3 class="text-xl font-bold">Juara 3</h3><p class="text-amber-400 text-2xl">E-Certificate</p></div>
+        </div><div class="mt-8 bg-slate-800/50 rounded-2xl p-6 text-center"><i class=""></i><h3 class="text-xl font-bold">SEMANGAT</h3><p class="text-slate-300">UTAMAKAN CHEMISTRY</p></div>`;
+    }
+
+    async function navigateTo(page) {
+        currentPage = page;
+        showLoading(true);
+        await loadAllTeams();
+        await loadBracket();
+        if (page === "dashboard") await renderDashboard();
+        else if (page === "register") await renderRegisterForm();
+        else if (page === "bracket") await renderBracketPage();
+        else if (page === "participants") await renderParticipants();
+        else if (page === "winners") await renderWinners();
+        else if (page === "prize") renderPrize();
+        showLoading(false);
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('text-amber-400'));
+        document.querySelectorAll(`[data-page="${page}"]`).forEach(l => l.classList.add('text-amber-400'));
+    }
+
+    async function init() {
+        showLoading(true);
+        await loadAllTeams();
+        await loadBracket();
+        showLoading(false);
+        navigateTo("dashboard");
+        document.querySelectorAll('.nav-link').forEach(el => el.addEventListener('click', () => navigateTo(el.dataset.page)));
+        document.getElementById("mobileMenuBtn")?.addEventListener("click", () => document.getElementById("mobileMenu").classList.toggle("hidden"));
+    }
+    init();
+</script>
+</body>
+</html>
